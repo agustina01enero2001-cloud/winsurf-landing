@@ -9,10 +9,10 @@ export default function FinalCta() {
           <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent" />
           <p className="section-eyebrow">Último paso</p>
           <h2 className="mb-3 text-2xl font-bold uppercase tracking-wider text-white md:text-3xl">
-            ¿Listo para activar tu beneficio?
+            ¿Listo para empezar?
           </h2>
           <p className="mb-8 text-sm text-slate-400 md:text-base">
-            Escribinos ahora y activá tu 200% extra en minutos.
+            Escribinos ahora y te ayudamos en minutos.
           </p>
           <WhatsAppButton className="w-full sm:w-auto">
             <span>Escribinos ahora</span>

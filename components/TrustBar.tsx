@@ -2,7 +2,7 @@ const items = [
   {
     icon: "⚡",
     title: "Activación inmediata",
-    desc: "Beneficio listo al instante",
+    desc: "Acceso listo al instante",
   },
   {
     icon: "🛡️",

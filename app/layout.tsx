@@ -16,12 +16,13 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Winsurf | Activar beneficio",
+  title: "Winsurf | Sumate ahora",
   description:
-    "Tu primer ingreso se triplica. 200% extra para nuevos integrantes. Activación inmediata.",
+    "Plataforma premium para nuevos integrantes. Activación inmediata por WhatsApp.",
   openGraph: {
-    title: "Winsurf | Activar beneficio",
-    description: "200% extra para nuevos integrantes. Activación inmediata.",
+    title: "Winsurf | Sumate ahora",
+    description:
+      "Plataforma premium para nuevos integrantes. Activación inmediata por WhatsApp.",
     type: "website",
   },
 };

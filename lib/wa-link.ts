@@ -2,7 +2,6 @@ import { WA_MESSAGES_BODY, WA_PHONES } from "@/lib/site-config";
 import { sanitizeTwclid } from "@/lib/twclid";
 
 const DEFAULT_VARS: Record<string, string> = {
-  beneficio: "200% en primer ingreso",
   marca: "Winsurf",
 };
 
@@ -16,7 +15,7 @@ export function parseMessageLines(body: string): string[] {
 export function pickRandomMessage(body: string): string {
   const lines = parseMessageLines(body);
   if (lines.length === 0) {
-    return "Hola, quiero activar mi beneficio 200% en {{marca}} con mi codigo: {{twclid}}";
+    return "Hola, quiero sumarme a {{marca}} con mi codigo: {{twclid}}";
   }
   return lines[Math.floor(Math.random() * lines.length)];
 }

@@ -17,7 +17,7 @@ const features = [
   {
     icon: "⚡",
     title: "Activaciones inmediatas",
-    desc: "Beneficios disponibles para nuevos integrantes al instante.",
+    desc: "Acceso disponible para nuevos integrantes al instante.",
   },
   {
     icon: "✅",
