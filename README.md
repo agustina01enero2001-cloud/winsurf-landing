@@ -1,36 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Winsurf Landing
 
-## Getting Started
+Landing page para Winsurf con rotación de números WhatsApp, 30 variantes de mensaje y tracking de X (Twitter).
 
-First, run the development server:
+## Stack
+
+- Next.js 16 (App Router)
+- Tailwind CSS 4
+- Sin base de datos — números y mensajes en código (`lib/site-config.ts`)
+
+## Setup local
 
 ```bash
+npm install
+cp .env.example .env
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- Landing: http://localhost:3005
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Configuración (código)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Editá estos archivos antes de deployar:
 
-## Learn More
+| Archivo | Qué configurar |
+|---------|----------------|
+| `lib/site-config.ts` | Números de WhatsApp (`WA_PHONES`) |
+| `lib/default-wa-messages.ts` | 30 variantes de mensaje |
+| `.env` | Pixel de X (`NEXT_PUBLIC_X_PIXEL_ID`, opcional) |
 
-To learn more about Next.js, take a look at the following resources:
+## Variables de entorno
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Variable | Descripción |
+|----------|-------------|
+| `NEXT_PUBLIC_X_PIXEL_ID` | Pixel X — solo **PageView** (visitas desde el anuncio) |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+La conversión real (primera carga) se reporta desde **chat-web** cuando se acredita el depósito, usando el `twclid` del mensaje (`codigo: …`).
 
-## Deploy on Vercel
+## WhatsApp: rotación y twclid
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Los botones llaman a `GET /api/wa-link`. El backend:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Selecciona un número activo (round-robin via cookie `wa-idx`)
+2. Elige un mensaje al azar de las 30 variantes
+3. Reemplaza variables (`{{marca}}`, `{{beneficio}}`, `{{twclid}}`)
+4. Devuelve URL `wa.me`
+
+**Variables en mensajes:**
+
+- `{{beneficio}}` — default: "200% en primer ingreso"
+- `{{marca}}` — default: "Winsurf"
+- `{{twclid}}` — click ID de X desde `?twclid=...` en la URL
+
+Todos los mensajes terminan en `codigo: {{twclid}}`.
+
+Ejemplo: `https://tudominio.com/?twclid=abc123` → `...con mi codigo: abc123`
+
+## X (Twitter) — qué mide cada capa
+
+| Evento | Dónde | Qué es para ustedes |
+|--------|-------|---------------------|
+| **PageView** | Landing (pixel) | Tráfico — cuántos entraron desde el anuncio |
+| **Purchase** | chat-web (Conversions API) | **Conversión real** — primera carga acreditada |
+
+El botón de WhatsApp **no** dispara conversión a X. Solo pasa el `twclid` en el mensaje para que chat-web lo use al acreditar.
+
+## Deploy en Netlify
+
+1. Push a GitHub
+2. Conectar repo en Netlify (usa `netlify.toml`)
+3. Variable de entorno: `NEXT_PUBLIC_X_PIXEL_ID` (opcional, solo PageView)
+4. Deploy — sin base de datos ni seed
+
+## Scripts
+
+```bash
+npm run dev    # Desarrollo (puerto 3005)
+npm run build  # Build producción
+```
