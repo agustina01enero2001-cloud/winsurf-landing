@@ -16,15 +16,8 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Winsurf | Sumate ahora",
-  description:
-    "Plataforma premium para nuevos integrantes. Activación inmediata por WhatsApp.",
-  openGraph: {
-    title: "Winsurf | Sumate ahora",
-    description:
-      "Plataforma premium para nuevos integrantes. Activación inmediata por WhatsApp.",
-    type: "website",
-  },
+  title: "Atención online",
+  description: "Acompañamiento y alta de usuarios. Usá /?c=tu-cliente",
 };
 
 export default function RootLayout({
@@ -33,7 +26,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className={`${outfit.variable} ${dmSans.variable} h-full`}>
+    <html lang="es" data-scroll-behavior="smooth" className={`${outfit.variable} ${dmSans.variable} h-full`}>
       <body className="min-h-full antialiased">
         {children}
         <XPixel />

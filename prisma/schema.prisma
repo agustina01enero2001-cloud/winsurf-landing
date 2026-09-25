@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Tenant {
+  id                String              @id @default(cuid())
+  slug              String              @unique
+  name              String
+  active            Boolean             @default(true)
+  adminPasswordHash String
+  heroVideoPath     String?
+  template          String              @default("winsurf") // winsurf | bienvenida
+  directViews       Int                 @default(0)
+  directClicks      Int                 @default(0)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  destinations      TenantDestination[]
+  origins           TenantOrigin[]
+  uniqueEvents      AnalyticsUnique[]
+}
+
+model TenantDestination {
+  id        String   @id @default(cuid())
+  tenantId  String
+  type      String // whatsapp | url
+  number    String?
+  url       String?
+  label     String?
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, active, sortOrder])
+}
+
+model TenantOrigin {
+  id        String   @id @default(cuid())
+  tenantId  String
+  key       String
+  name      String
+  active    Boolean  @default(true)
+  views     Int      @default(0)
+  clicks    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, key])
+  @@index([tenantId, active])
+}
+
+/** One row per visitor fingerprint + event kind + origin (dedupe views/clicks). */
+model AnalyticsUnique {
+  id         String   @id @default(cuid())
+  tenantId   String
+  kind       String // view | click
+  originKey  String   @default("") // "" = direct / unknown origin
+  visitorKey String // hash of browser visitorId, or IP fallback
+  createdAt  DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, kind, originKey, visitorKey])
+  @@index([tenantId, kind])
+}

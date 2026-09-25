@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateWaLink } from "@/lib/wa-link";
-
-const COOKIE_NAME = "wa-idx";
+import { getClientIp } from "@/lib/analytics";
+import { generateCtaLink } from "@/lib/wa-link";
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,13 +9,27 @@ export async function GET(request: NextRequest) {
       params[key] = value;
     });
 
-    const cookieIndex = request.cookies.get(COOKIE_NAME)?.value;
+    const slug = (params.c ?? "").trim().toLowerCase();
+    if (!slug) {
+      return NextResponse.json(
+        { error: "Falta el parámetro c (cliente)" },
+        { status: 400 },
+      );
+    }
+
+    const cookieName = `wa-idx-${slug}`;
+    const cookieIndex = request.cookies.get(cookieName)?.value;
     const currentIndex = cookieIndex ? parseInt(cookieIndex, 10) : undefined;
 
-    const { url, nextIndex } = generateWaLink(params, currentIndex);
+    const { url, nextIndex } = await generateCtaLink(
+      slug,
+      params,
+      currentIndex,
+      getClientIp(request),
+    );
 
     const response = NextResponse.json({ url });
-    response.cookies.set(COOKIE_NAME, String(nextIndex), {
+    response.cookies.set(cookieName, String(nextIndex), {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -28,6 +41,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Error al generar enlace";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status = message.includes("no encontrada") ? 404 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

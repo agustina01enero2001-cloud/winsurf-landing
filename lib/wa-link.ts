@@ -1,9 +1,7 @@
-import { WA_MESSAGES_BODY, WA_PHONES } from "@/lib/site-config";
+import { prisma } from "@/lib/db";
+import { WA_MESSAGES_BODY } from "@/lib/site-config";
 import { sanitizeTwclid } from "@/lib/twclid";
-
-const DEFAULT_VARS: Record<string, string> = {
-  marca: "Winsurf",
-};
+import { ORIGIN_PARAM, trackEvent } from "@/lib/analytics";
 
 export function parseMessageLines(body: string): string[] {
   return body
@@ -26,7 +24,7 @@ export function renderTemplate(
 ): string {
   const twclid = sanitizeTwclid(params.twclid) ?? "";
   const vars: Record<string, string> = {
-    ...DEFAULT_VARS,
+    marca: "Winsurf",
     ...params,
     twclid,
     fecha: new Date().toLocaleString("es-AR"),
@@ -40,28 +38,57 @@ export function buildWaUrl(number: string, message: string): string {
   return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`;
 }
 
-export function generateWaLink(
+export async function generateCtaLink(
+  slug: string,
   params: Record<string, string>,
   currentIndex?: number,
-): { url: string; nextIndex: number } {
-  const phones = WA_PHONES.filter((phone) => phone.number.trim());
+  visitorIp?: string | null,
+): Promise<{ url: string; nextIndex: number }> {
+  const tenant = await prisma.tenant.findFirst({
+    where: { slug, active: true },
+  });
+  if (!tenant) {
+    throw new Error("Landing no encontrada");
+  }
 
-  if (phones.length === 0) {
-    throw new Error("No hay números de WhatsApp configurados");
+  const destinations = await prisma.tenantDestination.findMany({
+    where: { tenantId: tenant.id, active: true },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+
+  if (destinations.length === 0) {
+    throw new Error("No hay destinos activos");
   }
 
   const idx =
     currentIndex !== undefined
-      ? currentIndex % phones.length
-      : Math.floor(Math.random() * phones.length);
+      ? currentIndex % destinations.length
+      : Math.floor(Math.random() * destinations.length);
 
-  const phone = phones[idx];
-  const message = renderTemplate(
-    pickRandomMessage(WA_MESSAGES_BODY),
-    params,
-  );
-  const url = buildWaUrl(phone.number, message);
-  const nextIndex = (idx + 1) % phones.length;
+  const destination = destinations[idx];
+  const nextIndex = (idx + 1) % destinations.length;
 
+  // Record CTA click once per visitor fingerprint (+ origin)
+  await trackEvent(slug, params[ORIGIN_PARAM] ?? params.o, "click", {
+    visitorId: params.vid ?? params.visitorId,
+    visitorIp,
+  });
+
+  if (destination.type === "url" && destination.url) {
+    return { url: destination.url, nextIndex };
+  }
+
+  if (!destination.number) {
+    throw new Error("Destino WhatsApp sin número");
+  }
+
+  const message = renderTemplate(pickRandomMessage(WA_MESSAGES_BODY), {
+    ...params,
+    marca: tenant.name,
+  });
+  const url = buildWaUrl(destination.number, message);
   return { url, nextIndex };
 }
+
+/** @deprecated use generateCtaLink */
+export const generateWaLink = generateCtaLink;

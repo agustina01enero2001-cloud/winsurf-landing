@@ -1,44 +1,48 @@
+type FeaturesProps = {
+  brandName: string;
+};
+
 const features = [
   {
     icon: "🛡️",
-    title: "Seguridad",
-    desc: "Datos protegidos y procesos claros desde el primer contacto.",
+    title: "Claridad",
+    desc: "Procesos explicados desde el primer contacto.",
   },
   {
     icon: "👥",
-    title: "Comunidad",
-    desc: "Integrantes activos todos los días y acompañamiento constante.",
+    title: "Acompañamiento",
+    desc: "Te guiamos paso a paso con atención humana.",
   },
   {
     icon: "🎧",
     title: "Atención rápida",
-    desc: "Respuesta directa por WhatsApp, sin vueltas ni esperas largas.",
+    desc: "Respuesta directa por WhatsApp, sin vueltas.",
   },
   {
     icon: "⚡",
-    title: "Activaciones inmediatas",
-    desc: "Acceso disponible para nuevos integrantes al instante.",
+    title: "Alta simple",
+    desc: "Creación de usuario ordenada y asistida.",
   },
   {
     icon: "✅",
     title: "Gestión simple",
-    desc: "Todo se resuelve en una conversación clara y personalizada.",
+    desc: "Todo se resuelve en una conversación clara.",
   },
   {
     icon: "🏆",
-    title: "Experiencia premium",
-    desc: "Diseñada para sentirse exclusiva, confiable y profesional.",
+    title: "Experiencia profesional",
+    desc: "Diseñada para sentirse confiable y ordenada.",
   },
 ];
 
-export default function Features() {
+export default function Features({ brandName }: FeaturesProps) {
   return (
     <section className="px-6 py-16 md:py-24">
       <div className="mx-auto max-w-5xl">
         <div className="mb-10 text-center md:mb-12">
           <p className="section-eyebrow">Ventajas</p>
           <h2 className="text-2xl font-bold uppercase tracking-wider text-white md:text-3xl">
-            ¿Por qué Winsurf?
+            ¿Por qué {brandName}?
           </h2>
         </div>
 

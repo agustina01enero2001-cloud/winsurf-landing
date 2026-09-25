@@ -1,8 +1,12 @@
+type TrustBarProps = {
+  brandName?: string;
+};
+
 const items = [
   {
     icon: "⚡",
-    title: "Activación inmediata",
-    desc: "Acceso listo al instante",
+    title: "Respuesta rápida",
+    desc: "Te atendemos en minutos",
   },
   {
     icon: "🛡️",
@@ -11,17 +15,17 @@ const items = [
   },
   {
     icon: "👥",
-    title: "Comunidad activa",
-    desc: "Miles de integrantes",
+    title: "Acompañamiento",
+    desc: "Te guiamos en cada paso",
   },
   {
     icon: "🏆",
-    title: "Experiencia premium",
-    desc: "Diseñada para vos",
+    title: "Experiencia clara",
+    desc: "Proceso simple y ordenado",
   },
 ];
 
-export default function TrustBar() {
+export default function TrustBar(_props: TrustBarProps) {
   return (
     <section className="relative px-6 py-12 md:py-14">
       <div className="section-divider mx-auto mb-12 max-w-xs" />

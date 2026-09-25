@@ -1,5 +1,6 @@
+# Netlify (legacy / optional — path principal es VPS, ver deploy/README.production.md)
 [build]
-  command = "npm run build"
+  command = "npx prisma generate && npx prisma db push && npm run build"
   publish = ".next"
 
 [[plugins]]
