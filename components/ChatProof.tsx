@@ -34,8 +34,8 @@ export default function ChatProof({ brandName }: ChatProofProps) {
   ];
 
   return (
-    <section className="px-6 py-16 md:py-24">
-      <div className="mx-auto max-w-3xl">
+    <section className="px-6 py-16 md:py-24 lg:px-10">
+      <div className="mx-auto max-w-3xl lg:max-w-6xl">
         <div className="mb-10 text-center md:mb-12">
           <p className="section-eyebrow">Atención real</p>
           <h2 className="mb-3 text-2xl font-bold uppercase tracking-wider text-white md:text-3xl">
@@ -46,7 +46,7 @@ export default function ChatProof({ brandName }: ChatProofProps) {
           </p>
         </div>
 
-        <div className="space-y-5">
+        <div className="space-y-5 lg:grid lg:grid-cols-3 lg:gap-5 lg:space-y-0">
           {messages.map((msg, i) => (
             <div
               key={i}
