@@ -76,12 +76,14 @@ export async function generateCtaLink(
 
   if (destination.type === "url" && destination.url) {
     const vid = (params.vid ?? params.visitorId)?.trim();
-    if (!vid) {
+    const origin = params.o?.trim();
+    if (!vid && !origin) {
       return { url: destination.url, nextIndex };
     }
     try {
       const target = new URL(destination.url);
-      target.searchParams.set("vid", vid);
+      if (vid) target.searchParams.set("vid", vid);
+      if (origin) target.searchParams.set("o", origin);
       return { url: target.toString(), nextIndex };
     } catch {
       return { url: destination.url, nextIndex };
