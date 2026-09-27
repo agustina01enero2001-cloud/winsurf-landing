@@ -75,7 +75,17 @@ export async function generateCtaLink(
   });
 
   if (destination.type === "url" && destination.url) {
-    return { url: destination.url, nextIndex };
+    const vid = (params.vid ?? params.visitorId)?.trim();
+    if (!vid) {
+      return { url: destination.url, nextIndex };
+    }
+    try {
+      const target = new URL(destination.url);
+      target.searchParams.set("vid", vid);
+      return { url: target.toString(), nextIndex };
+    } catch {
+      return { url: destination.url, nextIndex };
+    }
   }
 
   if (!destination.number) {
