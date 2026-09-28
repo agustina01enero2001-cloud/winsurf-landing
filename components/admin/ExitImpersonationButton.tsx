@@ -22,7 +22,7 @@ export default function ExitImpersonationButton() {
       type="button"
       onClick={handleExit}
       disabled={loading}
-      className="rounded-lg border border-amber-400 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+      className="rounded-lg border border-amber-600/60 bg-amber-950/60 px-3 py-1.5 text-sm font-medium text-amber-100 hover:bg-amber-900/70 disabled:opacity-60"
     >
       {loading ? "Volviendo..." : "Volver a superadmin"}
     </button>

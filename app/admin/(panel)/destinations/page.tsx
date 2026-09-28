@@ -109,20 +109,20 @@ export default function DestinationsPage() {
     await load();
   }
 
-  if (loading) return <p className="text-slate-500">Cargando...</p>;
+  if (loading) return <p className="text-slate-400">Cargando...</p>;
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold">Destinos de redirección</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-slate-400">
           WhatsApp o URL externa. La landing rota entre los activos.
         </p>
       </div>
 
       <form
         onSubmit={handleSubmit}
-        className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+        className="rounded-xl border border-slate-700/80 bg-slate-900 p-6 shadow-sm"
       >
         <h2 className="mb-4 text-sm font-semibold">
           {editingId ? "Editar destino" : "Agregar destino"}
@@ -148,9 +148,9 @@ export default function DestinationsPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           {form.type === "whatsapp" ? (
             <label className="block text-sm">
-              <span className="mb-1 block text-xs text-slate-500">Número</span>
+              <span className="mb-1 block text-xs text-slate-400">Número</span>
               <input
-                className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-slate-100"
                 value={form.number}
                 onChange={(e) => setForm({ ...form, number: e.target.value })}
                 placeholder="5493815901533"
@@ -159,9 +159,9 @@ export default function DestinationsPage() {
             </label>
           ) : (
             <label className="block text-sm sm:col-span-2">
-              <span className="mb-1 block text-xs text-slate-500">URL</span>
+              <span className="mb-1 block text-xs text-slate-400">URL</span>
               <input
-                className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-slate-100"
                 value={form.url}
                 onChange={(e) => setForm({ ...form, url: e.target.value })}
                 placeholder="https://..."
@@ -170,18 +170,18 @@ export default function DestinationsPage() {
             </label>
           )}
           <label className="block text-sm">
-            <span className="mb-1 block text-xs text-slate-500">Etiqueta</span>
+            <span className="mb-1 block text-xs text-slate-400">Etiqueta</span>
             <input
-              className="w-full rounded-lg border border-slate-300 px-3 py-2"
+              className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-slate-100"
               value={form.label}
               onChange={(e) => setForm({ ...form, label: e.target.value })}
             />
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block text-xs text-slate-500">Orden</span>
+            <span className="mb-1 block text-xs text-slate-400">Orden</span>
             <input
               type="number"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2"
+              className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-slate-100"
               value={form.sortOrder}
               onChange={(e) =>
                 setForm({ ...form, sortOrder: Number(e.target.value) || 0 })
@@ -197,12 +197,12 @@ export default function DestinationsPage() {
             Activo
           </label>
         </div>
-        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
         <div className="mt-4 flex gap-2">
           <button
             type="submit"
             disabled={saving}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-60"
           >
             {saving ? "Guardando..." : editingId ? "Actualizar" : "Agregar"}
           </button>
@@ -210,7 +210,7 @@ export default function DestinationsPage() {
             <button
               type="button"
               onClick={cancelEdit}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm"
+              className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800"
             >
               Cancelar
             </button>
@@ -218,9 +218,9 @@ export default function DestinationsPage() {
         </div>
       </form>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-slate-700/80 bg-slate-900 shadow-sm">
         <table className="w-full text-left text-sm">
-          <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500">
+          <thead className="border-b border-slate-700 bg-slate-950/80 text-xs uppercase text-slate-400">
             <tr>
               <th className="px-4 py-3">Tipo</th>
               <th className="px-4 py-3">Destino</th>
@@ -231,7 +231,7 @@ export default function DestinationsPage() {
           </thead>
           <tbody>
             {items.map((d) => (
-              <tr key={d.id} className="border-b border-slate-100 last:border-0">
+              <tr key={d.id} className="border-b border-slate-800 last:border-0">
                 <td className="px-4 py-3 text-xs font-medium uppercase">
                   {d.type}
                 </td>
@@ -244,7 +244,7 @@ export default function DestinationsPage() {
                     className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                       d.active
                         ? "bg-emerald-100 text-emerald-800"
-                        : "bg-slate-100 text-slate-500"
+                        : "bg-slate-800 text-slate-400"
                     }`}
                   >
                     {d.active ? "Activo" : "Inactivo"}
@@ -261,7 +261,7 @@ export default function DestinationsPage() {
                     <button
                       type="button"
                       onClick={() => removeItem(d.id)}
-                      className="text-red-600 hover:underline"
+                      className="text-red-400 hover:underline"
                     >
                       Borrar
                     </button>

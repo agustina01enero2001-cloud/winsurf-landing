@@ -100,20 +100,20 @@ export default function TenantSettingsPage() {
     setMessage("URL copiada");
   }
 
-  if (loading) return <p className="text-slate-500">Cargando...</p>;
-  if (!tenant) return <p className="text-red-600">{error || "Error"}</p>;
+  if (loading) return <p className="text-slate-400">Cargando...</p>;
+  if (!tenant) return <p className="text-red-400">{error || "Error"}</p>;
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold">Marca & video</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-slate-400">
           Landing pública:{" "}
-          <code className="rounded bg-slate-200 px-1">{tenant.publicUrl}</code>{" "}
+          <code className="rounded bg-slate-800 px-1 text-slate-200">{tenant.publicUrl}</code>{" "}
           <button
             type="button"
             onClick={copyUrl}
-            className="text-xs font-medium text-slate-700 underline"
+            className="text-xs font-medium text-slate-300 underline"
           >
             Copiar
           </button>
@@ -121,22 +121,22 @@ export default function TenantSettingsPage() {
       </div>
 
       {(error || message) && (
-        <p className={`text-sm ${error ? "text-red-600" : "text-emerald-700"}`}>
+        <p className={`text-sm ${error ? "text-red-400" : "text-emerald-400"}`}>
           {error || message}
         </p>
       )}
 
       <form
         onSubmit={saveBrand}
-        className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+        className="rounded-xl border border-slate-700/80 bg-slate-900 p-6 shadow-sm"
       >
         <h2 className="mb-4 text-sm font-semibold">Nombre de la caja / marca</h2>
         <label className="block text-sm">
-          <span className="mb-1 block text-xs text-slate-500">
+          <span className="mb-1 block text-xs text-slate-400">
             Reemplaza “Winsurf” en la landing y mensajes
           </span>
           <input
-            className="w-full max-w-md rounded-lg border border-slate-300 px-3 py-2 text-slate-900"
+            className="w-full max-w-md rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-slate-100"
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
@@ -144,11 +144,11 @@ export default function TenantSettingsPage() {
         </label>
 
         <label className="mt-4 block text-sm">
-          <span className="mb-1 block text-xs text-slate-500">
+          <span className="mb-1 block text-xs text-slate-400">
             Plantilla de landing
           </span>
           <select
-            className="w-full max-w-md rounded-lg border border-slate-300 px-3 py-2 text-slate-900"
+            className="w-full max-w-md rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-slate-100"
             value={template}
             onChange={(e) =>
               setTemplate(
@@ -161,7 +161,7 @@ export default function TenantSettingsPage() {
           </select>
         </label>
         {template === "bienvenida" && (
-          <p className="mt-2 max-w-md text-xs text-slate-500">
+          <p className="mt-2 max-w-md text-xs text-slate-400">
             La plantilla Bienvenida no usa el video hero; el upload de abajo solo
             aplica a Winsurf.
           </p>
@@ -170,7 +170,7 @@ export default function TenantSettingsPage() {
         <button
           type="submit"
           disabled={saving}
-          className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          className="mt-4 rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-60"
         >
           {saving ? "Guardando..." : "Guardar"}
         </button>
@@ -178,7 +178,7 @@ export default function TenantSettingsPage() {
 
       <form
         onSubmit={uploadVideo}
-        className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+        className="rounded-xl border border-slate-700/80 bg-slate-900 p-6 shadow-sm"
       >
         <h2 className="mb-4 text-sm font-semibold">Video hero (MP4)</h2>
         {preview && (
@@ -198,7 +198,7 @@ export default function TenantSettingsPage() {
         <button
           type="submit"
           disabled={uploading}
-          className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          className="mt-4 rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-60"
         >
           {uploading ? "Subiendo..." : "Subir video"}
         </button>

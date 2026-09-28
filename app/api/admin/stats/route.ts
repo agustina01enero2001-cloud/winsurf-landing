@@ -36,58 +36,111 @@ async function tenantIdFromSession(
 
 type SeriesPoint = { date: string; views: number; clicks: number };
 
-async function buildDailySeries(
-  tenantId: string,
-  fromDate: CalendarDate,
-  toDate: CalendarDate,
-  filter: { originKey: string | null; subOriginKey: string | null; directOnly: boolean },
-): Promise<SeriesPoint[]> {
-  const fromUtc = artMidnightUtc(fromDate);
-  const toExclusiveUtc = artMidnightUtc(addCalendarDays(toDate, 1));
+type SeriesEntity = {
+  id: string;
+  label: string;
+  kind: "origin" | "suborigin" | "direct";
+  points: SeriesPoint[];
+};
 
-  const where: {
-    tenantId: string;
-    createdAt: { gte: Date; lt: Date };
-    originKey?: string;
-    subOriginKey?: string;
-  } = {
-    tenantId,
-    createdAt: { gte: fromUtc, lt: toExclusiveUtc },
-  };
-
-  if (filter.directOnly) {
-    where.originKey = "";
-    where.subOriginKey = "";
-  } else if (filter.originKey !== null) {
-    where.originKey = filter.originKey;
-    if (filter.subOriginKey !== null) {
-      where.subOriginKey = filter.subOriginKey;
-    }
-  }
-
-  const events = await prisma.analyticsUnique.findMany({
-    where,
-    select: { kind: true, createdAt: true },
-  });
-
+function emptyDayMap(fromDate: CalendarDate, toDate: CalendarDate) {
   const buckets = new Map<string, { views: number; clicks: number }>();
   for (const day of eachCalendarDay(fromDate, toDate)) {
     buckets.set(formatIsoDate(day), { views: 0, clicks: 0 });
   }
+  return buckets;
+}
 
-  for (const event of events) {
-    const key = artDateKey(event.createdAt);
-    const bucket = buckets.get(key);
-    if (!bucket) continue;
-    if (event.kind === "view") bucket.views += 1;
-    else if (event.kind === "click") bucket.clicks += 1;
-  }
-
+function pointsFromBuckets(
+  buckets: Map<string, { views: number; clicks: number }>,
+): SeriesPoint[] {
   return [...buckets.entries()].map(([date, counts]) => ({
     date,
     views: counts.views,
     clicks: counts.clicks,
   }));
+}
+
+async function buildMultiSeries(
+  tenantId: string,
+  fromDate: CalendarDate,
+  toDate: CalendarDate,
+  origins: {
+    key: string;
+    name: string;
+    subOrigins: { key: string; name: string }[];
+  }[],
+): Promise<SeriesEntity[]> {
+  const fromUtc = artMidnightUtc(fromDate);
+  const toExclusiveUtc = artMidnightUtc(addCalendarDays(toDate, 1));
+
+  const events = await prisma.analyticsUnique.findMany({
+    where: {
+      tenantId,
+      createdAt: { gte: fromUtc, lt: toExclusiveUtc },
+    },
+    select: {
+      kind: true,
+      createdAt: true,
+      originKey: true,
+      subOriginKey: true,
+    },
+  });
+
+  const entities: SeriesEntity[] = [];
+
+  for (const origin of origins) {
+    const originBuckets = emptyDayMap(fromDate, toDate);
+    for (const event of events) {
+      if (event.originKey !== origin.key) continue;
+      const bucket = originBuckets.get(artDateKey(event.createdAt));
+      if (!bucket) continue;
+      if (event.kind === "view") bucket.views += 1;
+      else if (event.kind === "click") bucket.clicks += 1;
+    }
+    entities.push({
+      id: `o:${origin.key}`,
+      label: origin.name,
+      kind: "origin",
+      points: pointsFromBuckets(originBuckets),
+    });
+
+    for (const sub of origin.subOrigins) {
+      const subBuckets = emptyDayMap(fromDate, toDate);
+      for (const event of events) {
+        if (event.originKey !== origin.key || event.subOriginKey !== sub.key) {
+          continue;
+        }
+        const bucket = subBuckets.get(artDateKey(event.createdAt));
+        if (!bucket) continue;
+        if (event.kind === "view") bucket.views += 1;
+        else if (event.kind === "click") bucket.clicks += 1;
+      }
+      entities.push({
+        id: `o:${origin.key}|so:${sub.key}`,
+        label: `${origin.name} → ${sub.name}`,
+        kind: "suborigin",
+        points: pointsFromBuckets(subBuckets),
+      });
+    }
+  }
+
+  const directBuckets = emptyDayMap(fromDate, toDate);
+  for (const event of events) {
+    if (event.originKey !== "" || event.subOriginKey !== "") continue;
+    const bucket = directBuckets.get(artDateKey(event.createdAt));
+    if (!bucket) continue;
+    if (event.kind === "view") bucket.views += 1;
+    else if (event.kind === "click") bucket.clicks += 1;
+  }
+  entities.push({
+    id: "_direct",
+    label: "Sin origen",
+    kind: "direct",
+    points: pointsFromBuckets(directBuckets),
+  });
+
+  return entities;
 }
 
 export async function GET(request: NextRequest) {
@@ -119,20 +172,6 @@ async function getStats(request: NextRequest) {
       { error: "Indicá desde y hasta. El rango necesita las dos fechas." },
       { status: 400 },
     );
-  }
-
-  const seriesOriginRaw = request.nextUrl.searchParams.get("seriesOrigin")?.trim() ?? "";
-  const seriesSubRaw = request.nextUrl.searchParams.get("seriesSub")?.trim() ?? "";
-  const seriesFilter = {
-    originKey: null as string | null,
-    subOriginKey: null as string | null,
-    directOnly: false,
-  };
-  if (seriesOriginRaw === "_direct") {
-    seriesFilter.directOnly = true;
-  } else if (seriesOriginRaw) {
-    seriesFilter.originKey = seriesOriginRaw;
-    if (seriesSubRaw) seriesFilter.subOriginKey = seriesSubRaw;
   }
 
   let rangeCounts: Map<string, { views: number; clicks: number }> | null = null;
@@ -316,11 +355,15 @@ async function getStats(request: NextRequest) {
     }
   }
 
-  const series = await buildDailySeries(
+  const seriesEntities = await buildMultiSeries(
     tenantId,
     seriesFrom,
     seriesTo,
-    seriesFilter,
+    origins.map((o) => ({
+      key: o.key,
+      name: o.name,
+      subOrigins: o.subOrigins.map((s) => ({ key: s.key, name: s.name })),
+    })),
   );
 
   return NextResponse.json({
@@ -330,7 +373,7 @@ async function getStats(request: NextRequest) {
       clicks: leafClicks,
       conversion: conversionRate(leafViews, leafClicks),
     },
-    series,
+    seriesEntities,
     seriesRange: {
       from: formatIsoDate(seriesFrom),
       to: formatIsoDate(seriesTo),
