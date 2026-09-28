@@ -25,7 +25,11 @@ npm run dev
 ## URLs
 
 - Pública: `/?c={slug}`
+- Con origen: `/?c={slug}&o={origen}`
+- Con suborigen: `/?c={slug}&o={origen}&so={suborigen}`
 - Sin `c` o slug inválido → “Landing no encontrada”
+
+El CTA reenvía `o` y `so` al destino (URL o mensaje de WhatsApp). No se envía ID de visitante.
 
 ## Admin
 

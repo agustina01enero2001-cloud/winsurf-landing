@@ -7,7 +7,7 @@ const globalForPrisma = globalThis as unknown as {
   prismaSchemaVersion?: string;
 };
 
-const SCHEMA_VERSION = "tenant-v5-visitor-dedupe";
+const SCHEMA_VERSION = "tenant-v6-origin-suborigin";
 
 function resolveSqliteUrl(): string {
   const raw = process.env.DATABASE_URL ?? "file:./data.db";

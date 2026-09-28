@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { readTwclidFromSearchParams, TWCLID_PARAM } from "@/lib/twclid";
-import { getOrCreateVisitorId, VISITOR_PARAM } from "@/lib/visitor";
+import { getOrCreateFingerprint, FINGERPRINT_PARAM } from "@/lib/visitor";
 
 type WhatsAppButtonProps = {
   children: React.ReactNode;
@@ -29,7 +29,8 @@ export default function WhatsAppButton({
       if (twclid) {
         params.set(TWCLID_PARAM, twclid);
       }
-      params.set(VISITOR_PARAM, getOrCreateVisitorId());
+      // Fingerprint for server-side dedupe only — not forwarded to destination URLs.
+      params.set(FINGERPRINT_PARAM, getOrCreateFingerprint());
       const res = await fetch(`/api/wa-link?${params.toString()}`);
       const data = await res.json();
 

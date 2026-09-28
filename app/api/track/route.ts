@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   ORIGIN_PARAM,
+  SUBORIGIN_PARAM,
   getClientIp,
   trackEvent,
   type TrackKind,
 } from "@/lib/analytics";
-import { VISITOR_PARAM } from "@/lib/visitor";
+import { FINGERPRINT_PARAM } from "@/lib/visitor";
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
@@ -22,12 +23,20 @@ export async function POST(request: NextRequest) {
       : typeof body[ORIGIN_PARAM] === "string"
         ? body[ORIGIN_PARAM]
         : null;
-  const visitorId =
-    typeof body[VISITOR_PARAM] === "string"
-      ? body[VISITOR_PARAM]
-      : typeof body.visitorId === "string"
-        ? body.visitorId
+  const subOriginRaw =
+    typeof body.so === "string"
+      ? body.so
+      : typeof body[SUBORIGIN_PARAM] === "string"
+        ? body[SUBORIGIN_PARAM]
         : null;
+  const fingerprint =
+    typeof body[FINGERPRINT_PARAM] === "string"
+      ? body[FINGERPRINT_PARAM]
+      : typeof body.fp === "string"
+        ? body.fp
+        : typeof body.vid === "string"
+          ? body.vid
+          : null;
 
   if (!slug) {
     return NextResponse.json({ error: "Falta c" }, { status: 400 });
@@ -38,7 +47,8 @@ export async function POST(request: NextRequest) {
   }
 
   const result = await trackEvent(slug, originRaw, "view", {
-    visitorId,
+    subOriginKey: subOriginRaw,
+    fingerprint,
     visitorIp: getClientIp(request),
   });
   if (!result.ok) {

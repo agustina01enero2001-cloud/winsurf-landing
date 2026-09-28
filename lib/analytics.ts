@@ -8,8 +8,10 @@ import {
 
 export {
   ORIGIN_PARAM,
+  SUBORIGIN_PARAM,
   normalizeOriginKey,
   slugifyOriginName,
+  buildAttributionQuery,
 } from "@/lib/analytics-shared";
 
 export type { TrackKind } from "@/lib/analytics-shared";
@@ -31,57 +33,83 @@ function hashVisitorKey(raw: string): string {
 }
 
 function resolveVisitorKey(
-  visitorId?: string | null,
+  fingerprint?: string | null,
   visitorIp?: string | null,
 ): string {
-  const id = typeof visitorId === "string" ? visitorId.trim() : "";
-  if (id.length >= 8) return hashVisitorKey(`vid:${id}`);
+  const id = typeof fingerprint === "string" ? fingerprint.trim() : "";
+  if (id.length >= 8) return hashVisitorKey(`fp:${id}`);
   const ip = (visitorIp ?? "").trim() || "unknown";
   return hashVisitorKey(`ip:${ip}`);
 }
 
+export type TrackEventResult =
+  | {
+      ok: true;
+      bucket: "suborigin" | "origin" | "direct";
+      originKey: string | null;
+      subOriginKey: string | null;
+      counted: boolean;
+    }
+  | { ok: false };
+
 /**
- * Increment view/click once per browser visitorId (+ origin).
- * Falls back to IP only when no visitorId is sent.
+ * Increment view/click once per fingerprint + origin + suborigin.
+ * Falls back to IP only when no fingerprint is sent.
  */
 export async function trackEvent(
   slug: string,
   originKeyRaw: string | null | undefined,
   kind: TrackKind,
-  opts?: { visitorId?: string | null; visitorIp?: string | null },
-): Promise<
-  | {
-      ok: true;
-      bucket: "origin" | "direct";
-      key: string | null;
-      counted: boolean;
-    }
-  | { ok: false }
-> {
+  opts?: {
+    subOriginKey?: string | null;
+    fingerprint?: string | null;
+    visitorIp?: string | null;
+  },
+): Promise<TrackEventResult> {
   const tenant = await prisma.tenant.findFirst({
     where: { slug: slug.trim().toLowerCase(), active: true },
     select: { id: true },
   });
   if (!tenant) return { ok: false };
 
-  const key = normalizeOriginKey(originKeyRaw);
-  let bucket: "origin" | "direct" = "direct";
-  let originId: string | null = null;
-  let originKey = "";
+  const originKeyNorm = normalizeOriginKey(originKeyRaw);
+  const subKeyNorm = normalizeOriginKey(opts?.subOriginKey);
 
-  if (key) {
+  let bucket: "suborigin" | "origin" | "direct" = "direct";
+  let originId: string | null = null;
+  let subOriginId: string | null = null;
+  let originKey = "";
+  let subOriginKey = "";
+
+  if (originKeyNorm) {
     const origin = await prisma.tenantOrigin.findFirst({
-      where: { tenantId: tenant.id, key, active: true },
+      where: { tenantId: tenant.id, key: originKeyNorm, active: true },
       select: { id: true, key: true },
     });
     if (origin) {
       bucket = "origin";
       originId = origin.id;
       originKey = origin.key;
+
+      if (subKeyNorm) {
+        const sub = await prisma.tenantSubOrigin.findFirst({
+          where: {
+            originId: origin.id,
+            key: subKeyNorm,
+            active: true,
+          },
+          select: { id: true, key: true },
+        });
+        if (sub) {
+          bucket = "suborigin";
+          subOriginId = sub.id;
+          subOriginKey = sub.key;
+        }
+      }
     }
   }
 
-  const visitorKey = resolveVisitorKey(opts?.visitorId, opts?.visitorIp);
+  const visitorKey = resolveVisitorKey(opts?.fingerprint, opts?.visitorIp);
 
   try {
     await prisma.analyticsUnique.create({
@@ -89,21 +117,35 @@ export async function trackEvent(
         tenantId: tenant.id,
         kind,
         originKey,
+        subOriginKey,
         visitorKey,
       },
     });
   } catch {
-    // Unique constraint → already counted for this visitor
-    return { ok: true, bucket, key: originKey || null, counted: false };
+    // Unique constraint → already counted for this fingerprint + attribution
+    return {
+      ok: true,
+      bucket,
+      originKey: originKey || null,
+      subOriginKey: subOriginKey || null,
+      counted: false,
+    };
   }
 
-  if (bucket === "origin" && originId) {
+  const increment =
+    kind === "view"
+      ? { views: { increment: 1 } }
+      : { clicks: { increment: 1 } };
+
+  if (bucket === "suborigin" && subOriginId) {
+    await prisma.tenantSubOrigin.update({
+      where: { id: subOriginId },
+      data: increment,
+    });
+  } else if (bucket === "origin" && originId) {
     await prisma.tenantOrigin.update({
       where: { id: originId },
-      data:
-        kind === "view"
-          ? { views: { increment: 1 } }
-          : { clicks: { increment: 1 } },
+      data: increment,
     });
   } else {
     await prisma.tenant.update({
@@ -115,5 +157,11 @@ export async function trackEvent(
     });
   }
 
-  return { ok: true, bucket, key: originKey || null, counted: true };
+  return {
+    ok: true,
+    bucket,
+    originKey: originKey || null,
+    subOriginKey: subOriginKey || null,
+    counted: true,
+  };
 }

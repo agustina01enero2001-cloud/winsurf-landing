@@ -3,88 +3,27 @@ import {
   isNextResponse,
   requireTenantAccess,
 } from "@/lib/admin-guards";
+import {
+  addCalendarDays,
+  artDateKey,
+  artMidnightUtc,
+  compareCalendarDates,
+  eachCalendarDay,
+  formatIsoDate,
+  parseIsoDate,
+  todayArt,
+  type CalendarDate,
+} from "@/lib/analytics-dates";
 import type { SessionPayload } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-
-const ART_TIME_ZONE = "America/Argentina/Buenos_Aires";
-const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-type CalendarDate = { y: number; m: number; d: number };
 
 function conversionRate(views: number, clicks: number): number {
   if (views <= 0) return 0;
   return Math.round((clicks / views) * 1000) / 10;
 }
 
-function parseIsoDate(value: string): CalendarDate | null {
-  const match = ISO_DATE.exec(value);
-  if (!match) return null;
-  const y = Number(match[1]);
-  const m = Number(match[2]);
-  const d = Number(match[3]);
-  const probe = new Date(Date.UTC(y, m - 1, d));
-  if (
-    probe.getUTCFullYear() !== y ||
-    probe.getUTCMonth() !== m - 1 ||
-    probe.getUTCDate() !== d
-  ) {
-    return null;
-  }
-  return { y, m, d };
-}
-
-function addCalendarDays(date: CalendarDate, days: number): CalendarDate {
-  const shifted = new Date(Date.UTC(date.y, date.m - 1, date.d + days));
-  return {
-    y: shifted.getUTCFullYear(),
-    m: shifted.getUTCMonth() + 1,
-    d: shifted.getUTCDate(),
-  };
-}
-
-function compareCalendarDates(a: CalendarDate, b: CalendarDate): number {
-  if (a.y !== b.y) return a.y - b.y;
-  if (a.m !== b.m) return a.m - b.m;
-  return a.d - b.d;
-}
-
-/** Milliseconds to add to a UTC instant to get the wall clock in `timeZone`. */
-function timeZoneOffsetMs(instant: Date, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).formatToParts(instant);
-  const pick = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((part) => part.type === type)?.value ?? "0";
-  let hour = Number(pick("hour"));
-  if (hour === 24) hour = 0;
-  const wallAsUtc = Date.UTC(
-    Number(pick("year")),
-    Number(pick("month")) - 1,
-    Number(pick("day")),
-    hour,
-    Number(pick("minute")),
-    Number(pick("second")),
-  );
-  return wallAsUtc - instant.getTime();
-}
-
-/** UTC instant of 00:00:00 on that calendar day in Argentina. */
-function artMidnightUtc(date: CalendarDate): Date {
-  let utc = Date.UTC(date.y, date.m - 1, date.d, 3, 0, 0);
-  for (let i = 0; i < 3; i++) {
-    const offset = timeZoneOffsetMs(new Date(utc), ART_TIME_ZONE);
-    const next = Date.UTC(date.y, date.m - 1, date.d, 0, 0, 0) - offset;
-    if (next === utc) break;
-    utc = next;
-  }
-  return new Date(utc);
+function rangeBucketKey(originKey: string, subOriginKey: string): string {
+  return `${originKey}\0${subOriginKey}`;
 }
 
 async function tenantIdFromSession(
@@ -95,7 +34,74 @@ async function tenantIdFromSession(
   return request.nextUrl.searchParams.get("tenantId");
 }
 
+type SeriesPoint = { date: string; views: number; clicks: number };
+
+async function buildDailySeries(
+  tenantId: string,
+  fromDate: CalendarDate,
+  toDate: CalendarDate,
+  filter: { originKey: string | null; subOriginKey: string | null; directOnly: boolean },
+): Promise<SeriesPoint[]> {
+  const fromUtc = artMidnightUtc(fromDate);
+  const toExclusiveUtc = artMidnightUtc(addCalendarDays(toDate, 1));
+
+  const where: {
+    tenantId: string;
+    createdAt: { gte: Date; lt: Date };
+    originKey?: string;
+    subOriginKey?: string;
+  } = {
+    tenantId,
+    createdAt: { gte: fromUtc, lt: toExclusiveUtc },
+  };
+
+  if (filter.directOnly) {
+    where.originKey = "";
+    where.subOriginKey = "";
+  } else if (filter.originKey !== null) {
+    where.originKey = filter.originKey;
+    if (filter.subOriginKey !== null) {
+      where.subOriginKey = filter.subOriginKey;
+    }
+  }
+
+  const events = await prisma.analyticsUnique.findMany({
+    where,
+    select: { kind: true, createdAt: true },
+  });
+
+  const buckets = new Map<string, { views: number; clicks: number }>();
+  for (const day of eachCalendarDay(fromDate, toDate)) {
+    buckets.set(formatIsoDate(day), { views: 0, clicks: 0 });
+  }
+
+  for (const event of events) {
+    const key = artDateKey(event.createdAt);
+    const bucket = buckets.get(key);
+    if (!bucket) continue;
+    if (event.kind === "view") bucket.views += 1;
+    else if (event.kind === "click") bucket.clicks += 1;
+  }
+
+  return [...buckets.entries()].map(([date, counts]) => ({
+    date,
+    views: counts.views,
+    clicks: counts.clicks,
+  }));
+}
+
 export async function GET(request: NextRequest) {
+  try {
+    return await getStats(request);
+  } catch (error) {
+    console.error("[admin/stats]", error);
+    const message =
+      error instanceof Error ? error.message : "Error al cargar estadísticas";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+async function getStats(request: NextRequest) {
   const session = await requireTenantAccess();
   if (isNextResponse(session)) return session;
 
@@ -115,7 +121,24 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const seriesOriginRaw = request.nextUrl.searchParams.get("seriesOrigin")?.trim() ?? "";
+  const seriesSubRaw = request.nextUrl.searchParams.get("seriesSub")?.trim() ?? "";
+  const seriesFilter = {
+    originKey: null as string | null,
+    subOriginKey: null as string | null,
+    directOnly: false,
+  };
+  if (seriesOriginRaw === "_direct") {
+    seriesFilter.directOnly = true;
+  } else if (seriesOriginRaw) {
+    seriesFilter.originKey = seriesOriginRaw;
+    if (seriesSubRaw) seriesFilter.subOriginKey = seriesSubRaw;
+  }
+
   let rangeCounts: Map<string, { views: number; clicks: number }> | null = null;
+  let seriesFrom: CalendarDate;
+  let seriesTo: CalendarDate;
+
   if (hasFrom && hasTo) {
     const fromDate = parseIsoDate(fromRaw);
     const toDate = parseIsoDate(toRaw);
@@ -132,10 +155,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    seriesFrom = fromDate;
+    seriesTo = toDate;
+
     const fromUtc = artMidnightUtc(fromDate);
     const toExclusiveUtc = artMidnightUtc(addCalendarDays(toDate, 1));
     const grouped = await prisma.analyticsUnique.groupBy({
-      by: ["originKey", "kind"],
+      by: ["originKey", "subOriginKey", "kind"],
       where: {
         tenantId,
         createdAt: { gte: fromUtc, lt: toExclusiveUtc },
@@ -145,12 +171,16 @@ export async function GET(request: NextRequest) {
 
     rangeCounts = new Map();
     for (const row of grouped) {
-      const current = rangeCounts.get(row.originKey) ?? { views: 0, clicks: 0 };
+      const key = rangeBucketKey(row.originKey, row.subOriginKey);
+      const current = rangeCounts.get(key) ?? { views: 0, clicks: 0 };
       const count = row._count._all;
       if (row.kind === "click") current.clicks += count;
       else if (row.kind === "view") current.views += count;
-      rangeCounts.set(row.originKey, current);
+      rangeCounts.set(key, current);
     }
+  } else {
+    seriesTo = todayArt();
+    seriesFrom = addCalendarDays(seriesTo, -29);
   }
 
   const tenant = await prisma.tenant.findUnique({
@@ -169,53 +199,141 @@ export async function GET(request: NextRequest) {
 
   const origins = await prisma.tenantOrigin.findMany({
     where: { tenantId },
+    include: {
+      subOrigins: { orderBy: [{ views: "desc" }, { createdAt: "desc" }] },
+    },
     orderBy: [{ views: "desc" }, { createdAt: "desc" }],
   });
 
   const directCounts = rangeCounts
-    ? (rangeCounts.get("") ?? { views: 0, clicks: 0 })
+    ? (rangeCounts.get(rangeBucketKey("", "")) ?? { views: 0, clicks: 0 })
     : { views: tenant.directViews, clicks: tenant.directClicks };
 
-  const rows = [
-    ...origins.map((o) => {
-      const counts = rangeCounts?.get(o.key) ?? {
-        views: rangeCounts ? 0 : o.views,
-        clicks: rangeCounts ? 0 : o.clicks,
-      };
+  type StatsRow = {
+    id: string;
+    kind: "origin" | "suborigin" | "direct";
+    parentId: string | null;
+    key: string | null;
+    subKey: string | null;
+    name: string;
+    active: boolean;
+    views: number;
+    clicks: number;
+    conversion: number;
+    publicUrl: string;
+  };
+
+  const rows: StatsRow[] = [];
+
+  for (const o of origins) {
+    const originOnly = rangeCounts
+      ? (rangeCounts.get(rangeBucketKey(o.key, "")) ?? { views: 0, clicks: 0 })
+      : { views: o.views, clicks: o.clicks };
+
+    let originViews = originOnly.views;
+    let originClicks = originOnly.clicks;
+
+    const subRows: StatsRow[] = o.subOrigins.map((s) => {
+      const counts = rangeCounts
+        ? (rangeCounts.get(rangeBucketKey(o.key, s.key)) ?? {
+            views: 0,
+            clicks: 0,
+          })
+        : { views: s.views, clicks: s.clicks };
+      if (rangeCounts) {
+        originViews += counts.views;
+        originClicks += counts.clicks;
+      }
       return {
-        id: o.id,
-        kind: "origin" as const,
+        id: s.id,
+        kind: "suborigin" as const,
+        parentId: o.id,
         key: o.key,
-        name: o.name,
-        active: o.active,
+        subKey: s.key,
+        name: s.name,
+        active: s.active && o.active,
         views: counts.views,
         clicks: counts.clicks,
         conversion: conversionRate(counts.views, counts.clicks),
-        publicUrl: `/?c=${tenant.slug}&o=${o.key}`,
+        publicUrl: `/?c=${tenant.slug}&o=${o.key}&so=${s.key}`,
       };
-    }),
-    {
-      id: "direct",
-      kind: "direct" as const,
-      key: null,
-      name: "Sin origen",
-      active: true,
-      views: directCounts.views,
-      clicks: directCounts.clicks,
-      conversion: conversionRate(directCounts.views, directCounts.clicks),
-      publicUrl: `/?c=${tenant.slug}`,
-    },
-  ];
+    });
 
-  const totalViews = rows.reduce((sum, row) => sum + row.views, 0);
-  const totalClicks = rows.reduce((sum, row) => sum + row.clicks, 0);
+    if (!rangeCounts) {
+      originViews =
+        o.views + o.subOrigins.reduce((sum, s) => sum + s.views, 0);
+      originClicks =
+        o.clicks + o.subOrigins.reduce((sum, s) => sum + s.clicks, 0);
+    }
+
+    rows.push({
+      id: o.id,
+      kind: "origin",
+      parentId: null,
+      key: o.key,
+      subKey: null,
+      name: o.name,
+      active: o.active,
+      views: originViews,
+      clicks: originClicks,
+      conversion: conversionRate(originViews, originClicks),
+      publicUrl: `/?c=${tenant.slug}&o=${o.key}`,
+    });
+    rows.push(...subRows);
+  }
+
+  rows.push({
+    id: "direct",
+    kind: "direct",
+    parentId: null,
+    key: null,
+    subKey: null,
+    name: "Sin origen",
+    active: true,
+    views: directCounts.views,
+    clicks: directCounts.clicks,
+    conversion: conversionRate(directCounts.views, directCounts.clicks),
+    publicUrl: `/?c=${tenant.slug}`,
+  });
+
+  let leafViews = directCounts.views;
+  let leafClicks = directCounts.clicks;
+  for (const o of origins) {
+    const originOnly = rangeCounts
+      ? (rangeCounts.get(rangeBucketKey(o.key, "")) ?? { views: 0, clicks: 0 })
+      : { views: o.views, clicks: o.clicks };
+    leafViews += originOnly.views;
+    leafClicks += originOnly.clicks;
+    for (const s of o.subOrigins) {
+      const counts = rangeCounts
+        ? (rangeCounts.get(rangeBucketKey(o.key, s.key)) ?? {
+            views: 0,
+            clicks: 0,
+          })
+        : { views: s.views, clicks: s.clicks };
+      leafViews += counts.views;
+      leafClicks += counts.clicks;
+    }
+  }
+
+  const series = await buildDailySeries(
+    tenantId,
+    seriesFrom,
+    seriesTo,
+    seriesFilter,
+  );
 
   return NextResponse.json({
     tenant: { id: tenant.id, slug: tenant.slug, name: tenant.name },
     totals: {
-      views: totalViews,
-      clicks: totalClicks,
-      conversion: conversionRate(totalViews, totalClicks),
+      views: leafViews,
+      clicks: leafClicks,
+      conversion: conversionRate(leafViews, leafClicks),
+    },
+    series,
+    seriesRange: {
+      from: formatIsoDate(seriesFrom),
+      to: formatIsoDate(seriesTo),
     },
     rows,
   });

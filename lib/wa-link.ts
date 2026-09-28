@@ -1,7 +1,12 @@
 import { prisma } from "@/lib/db";
 import { WA_MESSAGES_BODY } from "@/lib/site-config";
 import { sanitizeTwclid } from "@/lib/twclid";
-import { ORIGIN_PARAM, trackEvent } from "@/lib/analytics";
+import {
+  ORIGIN_PARAM,
+  SUBORIGIN_PARAM,
+  trackEvent,
+} from "@/lib/analytics";
+import { FINGERPRINT_PARAM } from "@/lib/visitor";
 
 export function parseMessageLines(body: string): string[] {
   return body
@@ -13,7 +18,7 @@ export function parseMessageLines(body: string): string[] {
 export function pickRandomMessage(body: string): string {
   const lines = parseMessageLines(body);
   if (lines.length === 0) {
-    return "Hola, quiero sumarme a {{marca}} con mi codigo: {{twclid}}";
+    return "Hola, quiero sumarme a {{marca}}. Ref: {{twclid}}";
   }
   return lines[Math.floor(Math.random() * lines.length)];
 }
@@ -68,22 +73,29 @@ export async function generateCtaLink(
   const destination = destinations[idx];
   const nextIndex = (idx + 1) % destinations.length;
 
-  // Record CTA click once per visitor fingerprint (+ origin)
-  await trackEvent(slug, params[ORIGIN_PARAM] ?? params.o, "click", {
-    visitorId: params.vid ?? params.visitorId,
+  const originRaw = params[ORIGIN_PARAM] ?? params.o;
+  const subOriginRaw = params[SUBORIGIN_PARAM] ?? params.so;
+  const fingerprint =
+    params[FINGERPRINT_PARAM] ?? params.fp ?? params.vid ?? null;
+
+  await trackEvent(slug, originRaw, "click", {
+    subOriginKey: subOriginRaw,
+    fingerprint,
     visitorIp,
   });
 
   if (destination.type === "url" && destination.url) {
-    const vid = (params.vid ?? params.visitorId)?.trim();
-    const origin = params.o?.trim();
-    if (!vid && !origin) {
+    const origin = (originRaw ?? "").trim();
+    const subOrigin = (subOriginRaw ?? "").trim();
+    if (!origin && !subOrigin) {
       return { url: destination.url, nextIndex };
     }
     try {
       const target = new URL(destination.url);
-      if (vid) target.searchParams.set("vid", vid);
-      if (origin) target.searchParams.set("o", origin);
+      if (origin) target.searchParams.set(ORIGIN_PARAM, origin);
+      if (origin && subOrigin) {
+        target.searchParams.set(SUBORIGIN_PARAM, subOrigin);
+      }
       return { url: target.toString(), nextIndex };
     } catch {
       return { url: destination.url, nextIndex };
@@ -97,7 +109,13 @@ export async function generateCtaLink(
   const message = renderTemplate(pickRandomMessage(WA_MESSAGES_BODY), {
     ...params,
     marca: tenant.name,
-  });
+    o: (originRaw ?? "").trim(),
+    so: (subOriginRaw ?? "").trim(),
+  })
+    .replace(/\s*so=\s*(?=\s|$)/g, "")
+    .replace(/\s*o=\s*(?=\s|$)/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
   const url = buildWaUrl(destination.number, message);
   return { url, nextIndex };
 }

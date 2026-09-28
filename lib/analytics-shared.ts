@@ -1,4 +1,5 @@
 export const ORIGIN_PARAM = "o";
+export const SUBORIGIN_PARAM = "so";
 
 export type TrackKind = "view" | "click";
 
@@ -17,4 +18,17 @@ export function normalizeOriginKey(raw: string | null | undefined): string | nul
 
 export function slugifyOriginName(name: string): string {
   return normalizeOriginKey(name) ?? "origen";
+}
+
+export function buildAttributionQuery(
+  originKey: string | null | undefined,
+  subOriginKey?: string | null,
+): string {
+  const o = normalizeOriginKey(originKey);
+  if (!o) return "";
+  const so = normalizeOriginKey(subOriginKey);
+  const params = new URLSearchParams();
+  params.set(ORIGIN_PARAM, o);
+  if (so) params.set(SUBORIGIN_PARAM, so);
+  return params.toString();
 }

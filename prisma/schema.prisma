@@ -40,8 +40,26 @@ model TenantDestination {
 }
 
 model TenantOrigin {
+  id         String            @id @default(cuid())
+  tenantId   String
+  key        String
+  name       String
+  active     Boolean           @default(true)
+  views      Int               @default(0)
+  clicks     Int               @default(0)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  subOrigins TenantSubOrigin[]
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, key])
+  @@index([tenantId, active])
+}
+
+model TenantSubOrigin {
   id        String   @id @default(cuid())
-  tenantId  String
+  originId  String
   key       String
   name      String
   active    Boolean  @default(true)
@@ -50,23 +68,24 @@ model TenantOrigin {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  origin TenantOrigin @relation(fields: [originId], references: [id], onDelete: Cascade)
 
-  @@unique([tenantId, key])
-  @@index([tenantId, active])
+  @@unique([originId, key])
+  @@index([originId, active])
 }
 
-/** One row per visitor fingerprint + event kind + origin (dedupe views/clicks). */
+/** One row per fingerprint + event kind + origin + suborigin (dedupe). */
 model AnalyticsUnique {
-  id         String   @id @default(cuid())
-  tenantId   String
-  kind       String // view | click
-  originKey  String   @default("") // "" = direct / unknown origin
-  visitorKey String // hash of browser visitorId, or IP fallback
-  createdAt  DateTime @default(now())
+  id           String   @id @default(cuid())
+  tenantId     String
+  kind         String // view | click
+  originKey    String   @default("") // "" = direct / unknown origin
+  subOriginKey String   @default("") // "" = origin-only / no suborigin
+  visitorKey   String // hash of browser fingerprint, or IP fallback
+  createdAt    DateTime @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@unique([tenantId, kind, originKey, visitorKey])
+  @@unique([tenantId, kind, originKey, subOriginKey, visitorKey])
   @@index([tenantId, kind])
 }
