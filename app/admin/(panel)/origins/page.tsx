@@ -20,6 +20,29 @@ type StatsPayload = {
   rows: StatsRow[];
 };
 
+type DateRange = { from: string; to: string };
+
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+function isIsoDate(value: string): boolean {
+  const match = ISO_DATE.exec(value);
+  if (!match) return false;
+  const y = Number(match[1]);
+  const m = Number(match[2]);
+  const d = Number(match[3]);
+  const probe = new Date(Date.UTC(y, m - 1, d));
+  return (
+    probe.getUTCFullYear() === y &&
+    probe.getUTCMonth() === m - 1 &&
+    probe.getUTCDate() === d
+  );
+}
+
+function formatCalendarDate(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+
 function slugPreview(name: string): string {
   return name
     .trim()
@@ -40,26 +63,72 @@ export default function OriginsPage() {
   const [name, setName] = useState("");
   const [key, setKey] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
+  const [fromInput, setFromInput] = useState("");
+  const [toInput, setToInput] = useState("");
+  const [appliedRange, setAppliedRange] = useState<DateRange | null>(null);
+  const [rangeError, setRangeError] = useState("");
 
   const previewKey = useMemo(
     () => (key.trim() ? slugPreview(key) : slugPreview(name)),
     [key, name],
   );
 
-  async function load() {
-    const res = await fetch("/api/admin/stats");
-    if (!res.ok) {
-      setError("No se pudieron cargar las estadísticas");
-      setLoading(false);
-      return;
+  async function load(range: DateRange | null = appliedRange): Promise<boolean> {
+    const params = new URLSearchParams();
+    if (range) {
+      params.set("from", range.from);
+      params.set("to", range.to);
     }
+    const query = params.toString();
+    const res = await fetch(query ? `/api/admin/stats?${query}` : "/api/admin/stats");
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const message = data.error ?? "No se pudieron cargar las estadísticas";
+      if (range) setRangeError(message);
+      else setError(message);
+      setLoading(false);
+      return false;
+    }
+    setError("");
+    setRangeError("");
     setStats(await res.json());
     setLoading(false);
+    return true;
   }
 
   useEffect(() => {
-    void load();
+    void load(null);
   }, []);
+
+  async function handleApplyRange(e: FormEvent) {
+    e.preventDefault();
+    setRangeError("");
+    const from = fromInput.trim();
+    const to = toInput.trim();
+    if (!from || !to) {
+      setRangeError("Indicá desde y hasta. El rango necesita las dos fechas.");
+      return;
+    }
+    if (!isIsoDate(from) || !isIsoDate(to)) {
+      setRangeError("Fecha inválida. Usá el formato YYYY-MM-DD.");
+      return;
+    }
+    if (from > to) {
+      setRangeError("La fecha desde no puede ser posterior a hasta.");
+      return;
+    }
+    const range = { from, to };
+    const ok = await load(range);
+    if (ok) setAppliedRange(range);
+  }
+
+  function handleClearRange() {
+    setFromInput("");
+    setToInput("");
+    setRangeError("");
+    setAppliedRange(null);
+    void load(null);
+  }
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
@@ -127,6 +196,58 @@ export default function OriginsPage() {
           campaña.
         </p>
       </div>
+
+      <form
+        onSubmit={handleApplyRange}
+        className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+      >
+        <h2 className="mb-4 text-sm font-semibold">Período</h2>
+        <div className="flex flex-wrap items-end gap-4">
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs text-slate-500">Desde</span>
+            <input
+              type="date"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-slate-900"
+              value={fromInput}
+              onChange={(e) => setFromInput(e.target.value)}
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs text-slate-500">Hasta</span>
+            <input
+              type="date"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-slate-900"
+              value={toInput}
+              onChange={(e) => setToInput(e.target.value)}
+            />
+          </label>
+          <button
+            type="submit"
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+          >
+            Aplicar
+          </button>
+          {appliedRange && (
+            <button
+              type="button"
+              onClick={handleClearRange}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+            >
+              Todo
+            </button>
+          )}
+        </div>
+        {rangeError && <p className="mt-3 text-sm text-red-600">{rangeError}</p>}
+        {appliedRange ? (
+          <p className="mt-3 text-sm text-slate-600">
+            Únicos registrados por primera vez del{" "}
+            {formatCalendarDate(appliedRange.from)} al{" "}
+            {formatCalendarDate(appliedRange.to)}, hora de Argentina.
+          </p>
+        ) : (
+          <p className="mt-3 text-sm text-slate-500">Totales de por vida.</p>
+        )}
+      </form>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
